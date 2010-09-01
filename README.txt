@@ -3,7 +3,7 @@
 
 U Create module
 
-Drupal 6.x compatible
+Drupal 7.x compatible
 
 ===============================================================================
 
