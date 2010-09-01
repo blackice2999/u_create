@@ -1,0 +1,4 @@
+;$Id: ucreate.info,v 1.2 2010/09/01 18:35:54 alexb Exp $
+name = U Create
+description = Lets non-admins create user accounts for other people.
+core=6.x
