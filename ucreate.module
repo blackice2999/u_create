@@ -91,25 +91,6 @@ function ucreate_access_suspend($access_rule, $account, $op) {
   return FALSE;
 }
 
-
-/**
- * Menu callback for settings form.
- */
-function ucreate_settings_form() {
-  $options = user_roles();
-  unset($options[1]);
-  unset($options[2]);
-  $form['ucreate_default_roles'] = array(
-    '#title' => t('Default roles'),
-    '#description' => t('Roles a new user should be assigned.'),
-    '#type' => 'checkboxes',
-    '#options' => $options,
-    '#default_value' => variable_get('ucreate_default_roles', array()),
-    );
-  // @todo: personalize e-mail message.
-  return system_settings_form($form);
-}
-
 /**
  * Break out form for creating users.
  */
