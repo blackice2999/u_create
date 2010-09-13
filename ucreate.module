@@ -55,31 +55,25 @@ function ucreate_form_alter(&$form, &$form_state, $form_id) {
   if ($form_id == 'user_admin_settings') {
     $form['email_ucreate'] = array(
       '#type' => 'fieldset',
-      '#title' => t('U Create welcome message'),
+      '#title' => t('U Create template'),
       '#collapsible' => TRUE,
-      '#description' => t('Customize U Create welcome message'),
+      '#description' => t('Edit the e-mail message sent to users when a user is added using U Create. Available variables are: [user:name], [user:password], [user:welcome_message], [site:name], [site:login-url], [site:url-brief]'),
       '#group' => 'email',
     );
     $form['email_ucreate']['user_mail_ucreate_subject'] = array(
       '#type' => 'textfield',
       '#title' => t('Subject'),
-      '#default_value' => variable_get('user_mail_ucreate_subject', TRUE),
+      '#default_value' => welcome_subject(array(NULL)),
       '#maxlength' => 180,
     );
     $form['email_ucreate']['user_mail_ucreate_body'] = array(
       '#type' => 'textarea',
       '#title' => t('Body'),
-      '#default_value' => variable_get('user_mail_ucreate_body', TRUE),
+      '#default_value' => welcome_body(array(NULL)),
       '#rows' => 15,
     );
   }
   return $form;
-}
-
-function ucreate_form_submit($form, &$form_state) {
-  $edit = $form_state['values'];
-  variable_set('user_mail_ucreate_subject', $edit['user_mail_ucreate_subject']);
-  variable_set('user_mail_ucreate_body', $edit['user_mail_ucreate_body']);
 }
 
 /**
@@ -144,6 +138,17 @@ function ucreate_user_form() {
     '#required' => TRUE,
     );
 
+  // The personal welcome message will be added to the top of the mail.
+  // @todo: Ideal would be offering the full notification message for edit
+  //        * updated by ajax call back (we shouldn't show tokens to users)
+  //        * or in a second step of the form
+  //        Both approaches have ramifications for the use of the form in ajaxy popups.
+  $form['welcome_message_body'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Personal welcome message'),
+    '#default_value' => '',
+    '#description' => t('This welcome message will appear at the top of the e-mail notification sent to the new user.')
+    );
   $form['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Add'),
@@ -264,36 +269,24 @@ function ucreate_user_create($edit) {
   $edit['pass'] = $password;
   $edit['status'] = 1;
   $account = user_save($account, $edit);
+  $welcome_message = $edit['welcome_message_body'];
 
   // Notify user if successful.
   if ($account->uid) {
     drupal_set_message(t('You have created an account for @name. The username and password have been sent along with log in 
     instructions to the e-mail address !email.', array('@name' => $edit['name'], '!email' => l($edit['mail'], 'mailto:' . $edit['mail']))));
-
-    if (variable_get('user_mail_ucreate_subject')) {
-      $params['subject'] = variable_get('user_mail_ucreate_subject');
-    }
-    else {
-      $params['subject'] = t('[!site_name] We have created an account for you', array('!site_name' => variable_get('site_name', 'Drupal')));
-    }
-
+    
     $variables = array(
-      '!name' => $edit['name'],
-      '!site' => variable_get('site_name', 'Drupal'),
-      '!login_url' => user_pass_reset_url($account) . '/login',
-      '!url' => trim(url('<front>', array('absolute' => TRUE)), '/'),
-      '!password' => $password,
+      '[user:name]' => $edit['name'],
+      '[site:name]' => variable_get('site_name', 'Drupal'),
+      '[site:login-url]' => user_pass_reset_url($account) . '/login',
+      '[site:url-brief]' => trim(url('<front>', array('absolute' => TRUE)), '/'),
+      '[user:password]' => $password,
+      '[user:welcome_message]' => $welcome_message,
       );
-
-    if (variable_get('user_mail_ucreate_body')) {
-      $params['body'] = variable_get('user_mail_ucreate_body');
-    }
-    else {
-      // @todo: Would love to use one time login link here - alas it is only valid for 24 hrs and needs to be renewed then.
-      $params['body'] = t("\nHello !name,\n\nWe have created an account for you on !site\n!url.\n\nYou 
-      can log in to the site with the following username and password\n\n!name\n!password\n\nPlease 
-      change your password after the first time you log in.\n\nWelcome to !site", $variables);
-    }
+    
+    $params['subject'] = welcome_subject($variables);
+    $params['body'] = welcome_body($variables);
 
     if (!drupal_mail('ucreate', 'ucreate-create', $edit['mail'], $language, $params, $from)) {
       drupal_set_message(t('Error sending notification mail to user.'), 'error');
@@ -303,6 +296,27 @@ function ucreate_user_create($edit) {
     drupal_set_message(t('Error creating user.'), 'error');
   }
   return $account;
+}
+
+function welcome_body($variables) {
+  $body = variable_get('user_mail_ucreate_body');
+  if (empty($body)) {
+  // @todo: Would love to use one time login link here - alas it is only valid for 24 hrs and needs to be renewed then.
+  return t("[user:welcome_message]\n\nHello [user:name],\n\nWe have created an account for you on [site:name]\n[site:url-brief].\n\nYou can log in to the site with the following username and password\n\n[user:name]\n[user:password]\n\nPlease change your password after the first time you log in.\n\nWelcome to [site:name]", $variables);
+  }
+  else {
+    return t($body, $variables);
+  }
+}
+
+function welcome_subject($variables) {
+  $subject = variable_get('user_mail_ucreate_subject');
+  if (empty($subject)) {
+    return t('Account details for [user:name] at [site:name]', $variables);
+  }
+  else {
+    return t($subject, $variables);
+  }
 }
 
 /**
